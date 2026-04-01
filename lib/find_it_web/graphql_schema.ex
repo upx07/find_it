@@ -2,7 +2,7 @@ defmodule FindItWeb.GraphqlSchema do
   use Absinthe.Schema
 
   use AshGraphql,
-    domains: []
+    domains: [FindIt.Catalog]
 
   import_types Absinthe.Plug.Types
 

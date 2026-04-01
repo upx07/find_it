@@ -80,7 +80,7 @@ config :spark,
 config :find_it,
   ecto_repos: [FindIt.Repo],
   generators: [timestamp_type: :utc_datetime],
-  ash_domains: [FindIt.Accounts]
+  ash_domains: [FindIt.Accounts, FindIt.Catalog]
 
 config :find_it, Oban,
   engine: Oban.Engines.Basic,
