@@ -37,7 +37,8 @@ defmodule FindIt.Catalog.Category do
       description "URL-safe identifier, e.g. eletronicos"
     end
 
-    timestamps()
+    create_timestamp :created_at
+    update_timestamp :updated_at
   end
 
   identities do

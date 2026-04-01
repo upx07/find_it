@@ -36,7 +36,8 @@ defmodule FindIt.Catalog.Location do
       description "Optional detail about the location"
     end
 
-    timestamps()
+    create_timestamp :created_at
+    update_timestamp :updated_at
   end
 
   identities do
