@@ -13,5 +13,6 @@ defmodule FindIt.Inventory do
 
   resources do
     resource FindIt.Inventory.Item
+    resource FindIt.Inventory.Pickup
   end
 end
