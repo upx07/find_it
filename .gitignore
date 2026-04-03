@@ -35,3 +35,10 @@ find_it-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Environment variables — never commit secrets
+.env
+.env.local
+
+# Uploaded images from ESP32-CAM
+/priv/static/uploads/
+

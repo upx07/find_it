@@ -95,10 +95,11 @@ defmodule FindItWeb.Router do
     )
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", FindItWeb do
-  #   pipe_through :api
-  # end
+  scope "/api", FindItWeb do
+    pipe_through :api
+
+    post "/esp32/upload", Esp32Controller, :upload
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:find_it, :dev_routes) do
