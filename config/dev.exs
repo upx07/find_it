@@ -28,7 +28,7 @@ config :find_it, FindItWeb.Endpoint,
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:find_it, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:find_it, ~w(--watch)]},
-    node: ["node_modules/.bin/vite", "--host", cd: Path.expand("../assets", __DIR__)]
+    bash: ["-c", "fuser -k 5173/tcp 2>/dev/null; node_modules/.bin/vite", cd: Path.expand("../assets", __DIR__)]
   ]
 
 # ## SSL Support

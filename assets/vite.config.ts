@@ -14,6 +14,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    strictPort: true,
     proxy: {
       "/gql": "http://localhost:4000",
       "/auth": "http://localhost:4000",
