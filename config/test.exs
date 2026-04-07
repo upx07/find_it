@@ -1,4 +1,5 @@
 import Config
+config :find_it, Oban, testing: :manual
 config :find_it, token_signing_secret: "DsLKeBLYoTsk4bkQYePS3dWiBsmSjz61"
 config :bcrypt_elixir, log_rounds: 1
 config :ash, policies: [show_policy_breakdowns?: true], disable_async?: true

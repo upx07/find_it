@@ -104,7 +104,12 @@ defmodule FindIt.MixProject do
         "ash_typescript.npm_install",
         "cmd npm install --prefix assets"
       ],
-      "assets.build": ["compile", "tailwind find_it", "esbuild find_it", "cmd npm run build --prefix assets"],
+      "assets.build": [
+        "compile",
+        "tailwind find_it",
+        "esbuild find_it",
+        "cmd npm run build --prefix assets"
+      ],
       "assets.deploy": [
         "tailwind find_it --minify",
         "esbuild find_it --minify",
