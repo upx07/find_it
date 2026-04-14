@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ConfirmEmail from "./pages/ConfirmEmail";
+import PendingApproval from "./pages/PendingApproval";
 import StudentSearch from "./pages/StudentSearch";
 import StaffDashboard from "./pages/StaffDashboard";
 import NotFound from "./pages/NotFound";
@@ -18,6 +20,8 @@ function AppRoutes() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/confirmar-email" element={<ConfirmEmail />} />
+      <Route path="/aguardando-aprovacao" element={<PendingApproval />} />
       <Route path="/buscar" element={<StudentSearch />} />
       <Route
         path="/staff"

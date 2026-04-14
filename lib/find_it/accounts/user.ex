@@ -168,6 +168,10 @@ defmodule FindIt.Accounts.User do
         allow_nil? true
       end
 
+      argument :setor, :string do
+        allow_nil? true
+      end
+
       argument :role, FindIt.Accounts.UserRole do
         allow_nil? false
         default :student
@@ -189,6 +193,7 @@ defmodule FindIt.Accounts.User do
       change set_attribute(:name, arg(:name))
       change set_attribute(:email, arg(:email))
       change set_attribute(:ra, arg(:ra))
+      change set_attribute(:setor, arg(:setor))
       change set_attribute(:role, arg(:role))
 
       change fn changeset, _ ->
@@ -214,7 +219,7 @@ defmodule FindIt.Accounts.User do
     end
 
     update :update_active_user do
-      accept []
+      accept [:setor, :role]
       change set_attribute(:active, true)
     end
 
@@ -303,6 +308,7 @@ defmodule FindIt.Accounts.User do
     attribute :hashed_password, :string, allow_nil?: false, sensitive?: true
     attribute :active, :boolean, allow_nil?: false, default: false, public?: true
     attribute :ra, :string, allow_nil?: true, public?: true
+    attribute :setor, :string, allow_nil?: true, public?: true
     attribute :confirmed_at, :utc_datetime_usec, public?: true
 
     attribute :role, FindIt.Accounts.UserRole do
