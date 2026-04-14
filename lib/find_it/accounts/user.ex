@@ -4,7 +4,21 @@ defmodule FindIt.Accounts.User do
     domain: FindIt.Accounts,
     data_layer: AshPostgres.DataLayer,
     authorizers: [Ash.Policy.Authorizer],
-    extensions: [AshAuthentication]
+    extensions: [AshAuthentication, AshGraphql.Resource]
+
+  graphql do
+    type :user
+
+    queries do
+      read_one :sign_in, :sign_in_with_password, type_name: :user_with_token
+      list :list_access_requests, :read_access_requests
+    end
+
+    mutations do
+      create :register_with_password, :register_with_password
+      update :approve_user, :update_active_user
+    end
+  end
 
   authentication do
     add_ons do
@@ -18,7 +32,7 @@ defmodule FindIt.Accounts.User do
         confirm_on_update? false
         require_interaction? true
         confirmed_at_field :confirmed_at
-        auto_confirm_actions [:sign_in_with_magic_link, :reset_password_with_token]
+        auto_confirm_actions [:reset_password_with_token]
         sender FindIt.Accounts.User.Senders.SendNewUserConfirmationEmail
       end
     end
@@ -87,6 +101,7 @@ defmodule FindIt.Accounts.User do
     end
 
     read :sign_in_with_password do
+      graphql(type: :user_with_token, expose_metadata?: true)
       description "Attempt to sign in using a email and password."
       get? true
 
@@ -138,10 +153,24 @@ defmodule FindIt.Accounts.User do
     end
 
     create :register_with_password do
+      graphql(expose_metadata?: true)
       description "Register a new user with a email and password."
+
+      argument :name, :string do
+        allow_nil? false
+      end
 
       argument :email, :ci_string do
         allow_nil? false
+      end
+
+      argument :ra, :string do
+        allow_nil? true
+      end
+
+      argument :role, FindIt.Accounts.UserRole do
+        allow_nil? false
+        default :student
       end
 
       argument :password, :string do
@@ -157,8 +186,17 @@ defmodule FindIt.Accounts.User do
         sensitive? true
       end
 
-      # Sets the email from the argument
+      change set_attribute(:name, arg(:name))
       change set_attribute(:email, arg(:email))
+      change set_attribute(:ra, arg(:ra))
+      change set_attribute(:role, arg(:role))
+
+      change fn changeset, _ ->
+        case Ash.Changeset.get_argument(changeset, :role) do
+          :student -> Ash.Changeset.change_attribute(changeset, :active, true)
+          _ -> changeset
+        end
+      end
 
       # Hashes the provided password
       change AshAuthentication.Strategy.Password.HashPasswordChange
@@ -173,6 +211,16 @@ defmodule FindIt.Accounts.User do
         description "A JWT that can be used to authenticate the user."
         allow_nil? false
       end
+    end
+
+    update :update_active_user do
+      accept []
+      change set_attribute(:active, true)
+    end
+
+    read :read_access_requests do
+      filter expr(active == false and role != :student)
+      prepare build(sort: [created_at: :desc])
     end
 
     action :request_password_reset_token do
@@ -228,22 +276,43 @@ defmodule FindIt.Accounts.User do
     bypass AshAuthentication.Checks.AshAuthenticationInteraction do
       authorize_if always()
     end
+
+    policy action(:sign_in_with_password) do
+      authorize_if expr(role == :student and not is_nil(confirmed_at))
+      authorize_if expr(role != :student and active == true)
+    end
+
+    policy action(:register_with_password) do
+      authorize_if always()
+    end
+
+    policy action(:read_access_requests) do
+      authorize_if actor_attribute_equals(:active, true)
+    end
+
+    policy action(:update_active_user) do
+      authorize_if actor_attribute_equals(:role, :admin)
+    end
   end
 
   attributes do
     uuid_primary_key :id
 
-    attribute :email, :ci_string do
+    attribute :name, :string, allow_nil?: false, public?: true
+    attribute :email, :ci_string, allow_nil?: false, public?: true
+    attribute :hashed_password, :string, allow_nil?: false, sensitive?: true
+    attribute :active, :boolean, allow_nil?: false, default: false, public?: true
+    attribute :ra, :string, allow_nil?: true, public?: true
+    attribute :confirmed_at, :utc_datetime_usec, public?: true
+
+    attribute :role, FindIt.Accounts.UserRole do
       allow_nil? false
+      default :student
       public? true
     end
 
-    attribute :hashed_password, :string do
-      allow_nil? false
-      sensitive? true
-    end
-
-    attribute :confirmed_at, :utc_datetime_usec
+    create_timestamp :created_at, public?: true
+    update_timestamp :updated_at, public?: true
   end
 
   identities do

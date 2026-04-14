@@ -1,5 +1,5 @@
 defmodule FindIt.Accounts do
-  use Ash.Domain, otp_app: :find_it, extensions: [AshAdmin.Domain]
+  use Ash.Domain, otp_app: :find_it, extensions: [AshAdmin.Domain, AshGraphql.Domain]
 
   admin do
     show? true
