@@ -17,6 +17,16 @@ export default function Register() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function clearForm() {
+    setName("");
+    setEmail("");
+    setRa("");
+    setSetor("");
+    setPassword("");
+    setPasswordConfirmation("");
+    setError(null);
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -49,14 +59,14 @@ export default function Register() {
             <button
               type="button"
               className={`tab flex-1 ${role === "student" ? "tab-active" : ""}`}
-              onClick={() => setRole("student")}
+              onClick={() => { setRole("student"); clearForm(); }}
             >
               Sou aluno
             </button>
             <button
               type="button"
               className={`tab flex-1 ${role === "staff" ? "tab-active" : ""}`}
-              onClick={() => setRole("staff")}
+              onClick={() => { setRole("staff"); clearForm(); }}
             >
               Sou funcionário
             </button>

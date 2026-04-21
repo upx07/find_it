@@ -37,37 +37,21 @@ const SIGN_IN = `
       name
       role
       active
-      metadata {
-        token
-      }
+      token
     }
   }
 `;
 
 const REGISTER = `
-  mutation Register(
-    $name: String!
-    $email: String!
-    $ra: String
-    $setor: String
-    $role: UserRoleEnum!
-    $password: String!
-    $passwordConfirmation: String!
-  ) {
-    registerWithPassword(
-      name: $name
-      email: $email
-      ra: $ra
-      setor: $setor
-      role: $role
-      password: $password
-      passwordConfirmation: $passwordConfirmation
-    ) {
-      id
-      email
-      name
-      role
-      active
+  mutation Register($input: RegisterWithPasswordInput!) {
+    registerWithPassword(input: $input) {
+      result {
+        id
+        email
+        name
+        role
+        active
+      }
       metadata {
         token
       }
@@ -81,31 +65,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function login(email: string, password: string) {
     const data = await gqlFetch<{
-      signIn: User & { metadata: { token: string } };
+      signIn: User & { token: string };
     }>(SIGN_IN, { email, password });
-    const { metadata, ...userFields } = data.signIn;
-    setToken(metadata.token);
-    setTokenState(metadata.token);
+    const { token: jwt, ...userFields } = data.signIn;
+    setToken(jwt);
+    setTokenState(jwt);
     setUser(userFields);
   }
 
   async function register(fields: RegisterFields) {
     const data = await gqlFetch<{
-      registerWithPassword: User & { metadata: { token: string } };
+      registerWithPassword: { result: User; metadata: { token: string } };
     }>(REGISTER, {
-      name: fields.name,
-      email: fields.email,
-      ra: fields.ra || null,
-      setor: fields.setor || null,
-      role: fields.role,
-      password: fields.password,
-      passwordConfirmation: fields.passwordConfirmation,
+      input: {
+        name: fields.name,
+        email: fields.email,
+        ra: fields.ra || null,
+        setor: fields.setor || null,
+        role: fields.role,
+        password: fields.password,
+        passwordConfirmation: fields.passwordConfirmation,
+      },
     });
-    const { metadata, ...userFields } = data.registerWithPassword;
+    const { result, metadata } = data.registerWithPassword;
     setToken(metadata.token);
     setTokenState(metadata.token);
-    setUser(userFields);
-    return { role: userFields.role };
+    setUser(result);
+    return { role: result.role };
   }
 
   function logout() {

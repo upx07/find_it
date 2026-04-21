@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import SideMenu from "../components/SideMenu";
 
 type Category = "todos" | "eletronicos" | "documentos" | "vestuario" | "acessorios" | "chaves";
 
@@ -152,6 +154,8 @@ export default function StudentSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<Category>("todos");
+  const { token, user } = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [location, setLocation] = useState("Todos os locais");
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
@@ -177,18 +181,27 @@ export default function StudentSearch() {
 
   return (
     <div className="min-h-screen bg-base-100 flex flex-col">
-      <nav className="navbar bg-primary text-primary-content px-6 shadow-md">
-        <div className="flex-1 flex items-center gap-2">
+      <nav className="navbar bg-primary text-primary-content px-4 shadow-md">
+        {token && (user?.role === "staff" || user?.role === "admin") ? (
+          <button className="btn btn-ghost btn-sm" onClick={() => setDrawerOpen(true)}>
+            <span className="hero-bars-3 w-5 h-5" />
+          </button>
+        ) : (
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate("/")}>
+            <span className="hero-arrow-left w-5 h-5" />
+          </button>
+        )}
+        <div className="flex-1 flex items-center gap-2 ml-2">
           <span className="hero-magnifying-glass w-5 h-5" />
           <span className="font-bold text-lg tracking-tight">FindIt</span>
         </div>
-        <button
-          className="btn btn-ghost btn-sm text-primary-content"
-          onClick={() => navigate("/")}
-        >
-          <span className="hero-arrow-right-on-rectangle w-5 h-5" />
-        </button>
+        {!token && (
+          <Link to="/login" className="btn btn-ghost btn-sm text-primary-content">
+            Entrar
+          </Link>
+        )}
       </nav>
+      <SideMenu open={drawerOpen} onClose={() => setDrawerOpen(false)} />
 
       <div className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
         <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-1">

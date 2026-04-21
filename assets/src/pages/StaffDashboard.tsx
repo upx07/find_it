@@ -1,4 +1,5 @@
 import { useState } from "react";
+import SideMenu from "../components/SideMenu";
 
 interface Item {
   id: string;
@@ -149,22 +150,7 @@ export default function StaffDashboard() {
         <span className="hero-plus w-6 h-6" />
       </button>
 
-      {drawerOpen && (
-        <div className="fixed inset-0 z-40 flex">
-          <div className="w-64 bg-base-100 shadow-xl p-6 flex flex-col gap-4">
-            <p className="font-bold text-lg">Menu</p>
-            <a href="/" className="btn btn-ghost justify-start">
-              <span className="hero-home w-5 h-5" />
-              Início
-            </a>
-            <button className="btn btn-ghost justify-start text-error">
-              <span className="hero-arrow-right-on-rectangle w-5 h-5" />
-              Sair
-            </button>
-          </div>
-          <div className="flex-1 bg-black/30" onClick={() => setDrawerOpen(false)} />
-        </div>
-      )}
+      <SideMenu open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
   );
 }
