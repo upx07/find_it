@@ -1,83 +1,107 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SideMenu from "../components/SideMenu";
+import { gqlFetch } from "../services/graphql";
 
 interface Item {
   id: string;
   code: string;
-  category: string;
-  description: string;
-  location: string;
-  date: string;
-  status: "disponivel" | "devolvido";
+  description: string | null;
+  imageUrl: string | null;
+  status: "available" | "retrieved";
+  foundAt: string | null;
+  aiProcessed: boolean;
+  category: { id: string; name: string } | null;
+  location: { id: string; name: string } | null;
 }
 
-const MOCK_ITEMS: Item[] = [
-  {
-    id: "1",
-    code: "OBJ-001",
-    category: "Eletrônicos",
-    description: "Fone de ouvido Bluetooth preto, modelo JBL Tune 510BT. Sem case.",
-    location: "Bloco A",
-    date: "10/04/2025",
-    status: "disponivel",
-  },
-  {
-    id: "2",
-    code: "OBJ-002",
-    category: "Eletrônicos",
-    description:
-      "iPhone 14 com capa transparente e protetor de tela. Tela bloqueada com papel de parede de paisagem.",
-    location: "Cantina",
-    date: "09/04/2025",
-    status: "disponivel",
-  },
-  {
-    id: "3",
-    code: "OBJ-003",
-    category: "Documentos",
-    description: "Carteira estudantil em nome de João Silva, RA 235255.",
-    location: "Biblioteca",
-    date: "07/04/2025",
-    status: "devolvido",
-  },
-];
+const LIST_ITEMS = `
+  query {
+    listItems {
+      results {
+        id
+        code
+        description
+        imageUrl
+        status
+        foundAt
+        aiProcessed
+        category { id name }
+        location { id name }
+      }
+    }
+  }
+`;
 
-const STATS = [
-  { label: "Total Cadastrados", value: 17, icon: "hero-archive-box" },
-  { label: "Devolvidos", value: 3, icon: "hero-check-circle" },
-  { label: "Pendentes", value: 14, icon: "hero-clock" },
-  { label: "Taxa de Devolução", value: "18%", icon: "hero-chart-bar" },
-];
+const UPDATE_STATUS = `
+  mutation UpdateItemStatus($id: ID!, $input: UpdateItemStatusInput!) {
+    updateItemStatus(id: $id, input: $input) {
+      result {
+        id
+        status
+      }
+    }
+  }
+`;
 
 export default function StaffDashboard() {
-  const [items, setItems] = useState<Item[]>(MOCK_ITEMS);
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [updating, setUpdating] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  function toggleStatus(id: string) {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, status: item.status === "disponivel" ? "devolvido" : "disponivel" }
-          : item,
-      ),
-    );
+  useEffect(() => { fetchItems(); }, []);
+
+  async function fetchItems() {
+    try {
+      const data = await gqlFetch<{ listItems: { results: Item[] } }>(LIST_ITEMS);
+      setItems(data.listItems.results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao carregar itens");
+    } finally {
+      setLoading(false);
+    }
   }
+
+  async function toggleStatus(item: Item) {
+    const newStatus = item.status === "available" ? "retrieved" : "available";
+    setUpdating(item.id);
+    try {
+      await gqlFetch(UPDATE_STATUS, { id: item.id, input: { status: newStatus } });
+      setItems((prev) =>
+        prev.map((i) => i.id === item.id ? { ...i, status: newStatus } : i)
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao atualizar status");
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  const total = items.length;
+  const available = items.filter((i) => i.status === "available").length;
+  const retrieved = items.filter((i) => i.status === "retrieved").length;
+  const rate = total > 0 ? Math.round((retrieved / total) * 100) : 0;
+
+  const stats = [
+    { label: "Total Cadastrados", value: total, icon: "hero-archive-box" },
+    { label: "Devolvidos", value: retrieved, icon: "hero-check-circle" },
+    { label: "Disponíveis", value: available, icon: "hero-clock" },
+    { label: "Taxa de Devolução", value: `${rate}%`, icon: "hero-chart-bar" },
+  ];
 
   return (
     <div className="min-h-screen bg-base-100 flex flex-col">
       <nav className="navbar bg-primary text-primary-content px-4 shadow-md">
         <button
           className="btn btn-ghost btn-sm text-primary-content"
-          onClick={() => setDrawerOpen(!drawerOpen)}
+          onClick={() => setDrawerOpen(true)}
         >
           <span className="hero-bars-3 w-5 h-5" />
         </button>
         <div className="flex-1 flex items-center gap-2 ml-2">
           <span className="hero-magnifying-glass w-5 h-5" />
           <span className="font-bold text-lg tracking-tight">FindIt Staff</span>
-        </div>
-        <div tabIndex={0} role="button" className="btn btn-ghost btn-circle btn-sm">
-          <span className="hero-user-circle w-6 h-6 text-primary-content" />
         </div>
       </nav>
 
@@ -87,8 +111,14 @@ export default function StaffDashboard() {
         </p>
         <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
+        {error && (
+          <div className="alert alert-error mb-4 text-sm">
+            <span>{error}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 mb-8">
-          {STATS.map((stat) => (
+          {stats.map((stat) => (
             <div key={stat.label} className="card bg-base-200 shadow-sm">
               <div className="card-body p-4 gap-1">
                 <span className={`${stat.icon} w-5 h-5 text-primary`} />
@@ -104,43 +134,69 @@ export default function StaffDashboard() {
         </p>
         <h2 className="text-lg font-bold mb-4">Objetos Recentes</h2>
 
-        <div className="flex flex-col gap-3">
-          {items.map((item) => (
-            <div key={item.id} className="card bg-base-200 shadow-sm">
-              <div className="card-body p-4 gap-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs text-base-content/60">
-                    <span className="badge badge-ghost badge-sm">{item.category}</span>
-                    <span>{item.code}</span>
-                  </div>
-                  <span
-                    className={`badge badge-sm ${
-                      item.status === "disponivel" ? "badge-success" : "badge-neutral"
-                    }`}
-                  >
-                    {item.status === "disponivel" ? "Disponível" : "Devolvido"}
-                  </span>
-                </div>
-                <p className="text-sm leading-snug line-clamp-2">{item.description}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 text-xs text-base-content/50">
-                    <span className="flex items-center gap-1">
-                      <span className="hero-map-pin w-3 h-3" />
-                      {item.location}
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <span className="loading loading-spinner loading-lg text-primary" />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center py-16 gap-3 text-base-content/40">
+            <span className="hero-archive-box w-12 h-12" />
+            <p className="text-sm">Nenhum item cadastrado ainda</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {items.map((item) => (
+              <div key={item.id} className="card bg-base-200 shadow-sm">
+                <div className="card-body p-4 gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs text-base-content/60">
+                      {item.category && (
+                        <span className="badge badge-ghost badge-sm">{item.category.name}</span>
+                      )}
+                      <span>{item.code}</span>
+                      {!item.aiProcessed && (
+                        <span className="badge badge-warning badge-sm">Processando IA</span>
+                      )}
+                    </div>
+                    <span className={`badge badge-sm ${item.status === "available" ? "badge-success" : "badge-neutral"}`}>
+                      {item.status === "available" ? "Disponível" : "Devolvido"}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <span className="hero-calendar w-3 h-3" />
-                      {item.date}
-                    </span>
                   </div>
-                  <button className="btn btn-ghost btn-xs" onClick={() => toggleStatus(item.id)}>
-                    {item.status === "disponivel" ? "Marcar devolvido" : "Reabrir"}
-                  </button>
+
+                  <p className="text-sm leading-snug line-clamp-2">
+                    {item.description ?? "Aguardando descrição da IA..."}
+                  </p>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-xs text-base-content/50">
+                      {item.location && (
+                        <span className="flex items-center gap-1">
+                          <span className="hero-map-pin w-3 h-3" />
+                          {item.location.name}
+                        </span>
+                      )}
+                      {item.foundAt && (
+                        <span className="flex items-center gap-1">
+                          <span className="hero-calendar w-3 h-3" />
+                          {new Date(item.foundAt).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      disabled={updating === item.id}
+                      onClick={() => toggleStatus(item)}
+                    >
+                      {updating === item.id
+                        ? <span className="loading loading-spinner loading-xs" />
+                        : item.status === "available" ? "Marcar devolvido" : "Reabrir"}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <button

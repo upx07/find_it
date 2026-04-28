@@ -1,63 +1,101 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { gqlFetch } from "../services/graphql";
 import SideMenu from "../components/SideMenu";
 
-type Category = "todos" | "eletronicos" | "documentos" | "vestuario" | "acessorios" | "chaves";
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Location {
+  id: string;
+  name: string;
+}
 
 interface Item {
   id: string;
   code: string;
-  category: string;
-  description: string;
-  location: string;
-  date: string;
-  imageUrl?: string;
+  description: string | null;
+  status: "available" | "retrieved";
+  foundAt: string | null;
+  category: Category | null;
+  location: Location | null;
 }
 
-const MOCK_ITEMS: Item[] = [
-  {
-    id: "1",
-    code: "OBJ-002",
-    category: "Eletrônicos",
-    description:
-      "iPhone 14 com capa transparente e protetor de tela. Tela bloqueada com papel de parede de paisagem.",
-    location: "Cantina",
-    date: "09/04/2025",
-  },
-  {
-    id: "2",
-    code: "OBJ-001",
-    category: "Eletrônicos",
-    description: "Fone de ouvido Bluetooth preto, modelo JBL Tune 510BT. Sem case.",
-    location: "Bloco A",
-    date: "10/04/2025",
-  },
-];
+const LIST_ITEMS = `
+  query {
+    listItems {
+      results {
+        id
+        code
+        description
+        status
+        foundAt
+        category { id name }
+        location { id name }
+      }
+    }
+  }
+`;
 
-const CATEGORIES: { value: Category; label: string }[] = [
-  { value: "todos", label: "Todos" },
-  { value: "eletronicos", label: "Eletrônicos" },
-  { value: "documentos", label: "Documentos" },
-  { value: "vestuario", label: "Vestuário" },
-  { value: "acessorios", label: "Acessórios" },
-  { value: "chaves", label: "Chaves" },
-];
+const LIST_CATEGORIES = `
+  query {
+    listCategories {
+      results { id name }
+    }
+  }
+`;
 
-const LOCATIONS = ["Todos os locais", "Bloco A", "Bloco B", "Cantina", "Biblioteca", "Laboratório"];
+const LIST_LOCATIONS = `
+  query {
+    listLocations {
+      results { id name }
+    }
+  }
+`;
+
+const CREATE_PICKUP = `
+  mutation CreatePickup($input: CreatePickupInput!) {
+    createPickup(input: $input) {
+      result { id }
+    }
+  }
+`;
 
 interface PickupModalProps {
   item: Item;
   onClose: () => void;
+  onSuccess: () => void;
 }
 
-function PickupModal({ item, onClose }: PickupModalProps) {
+function PickupModal({ item, onClose, onSuccess }: PickupModalProps) {
   const [form, setForm] = useState({ nome: "", ra: "", cpf: "", data: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setError(null);
+    setLoading(true);
+    try {
+      await gqlFetch(CREATE_PICKUP, {
+        input: {
+          studentName: form.nome,
+          studentRa: form.ra,
+          studentCpf: form.cpf,
+          retrievedAt: form.data,
+          itemId: item.id,
+        },
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao solicitar retirada");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -71,7 +109,7 @@ function PickupModal({ item, onClose }: PickupModalProps) {
               Compareça à secretaria com um documento de identificação para retirar o item{" "}
               <strong>{item.code}</strong>.
             </p>
-            <button className="btn btn-primary" onClick={onClose}>
+            <button className="btn btn-primary" onClick={onSuccess}>
               Fechar
             </button>
           </div>
@@ -79,7 +117,7 @@ function PickupModal({ item, onClose }: PickupModalProps) {
           <>
             <h3 className="font-bold text-lg mb-1">Solicitar Retirada</h3>
             <p className="text-sm text-base-content/70 mb-4">
-              {item.code} · {item.category}
+              {item.code} · {item.category?.name}
             </p>
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
               <label className="form-control">
@@ -133,12 +171,21 @@ function PickupModal({ item, onClose }: PickupModalProps) {
                   onChange={(e) => setForm({ ...form, data: e.target.value })}
                 />
               </label>
+
+              {error && (
+                <div className="alert alert-error py-2 text-sm">
+                  <span>{error}</span>
+                </div>
+              )}
+
               <div className="modal-action mt-2">
-                <button type="button" className="btn btn-ghost" onClick={onClose}>
+                <button type="button" className="btn btn-ghost" onClick={onClose} disabled={loading}>
                   Cancelar
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  Confirmar retirada
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  {loading
+                    ? <span className="loading loading-spinner loading-sm" />
+                    : "Confirmar retirada"}
                 </button>
               </div>
             </form>
@@ -152,32 +199,51 @@ function PickupModal({ item, onClose }: PickupModalProps) {
 
 export default function StudentSearch() {
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<Category>("todos");
   const { token, user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [location, setLocation] = useState("Todos os locais");
+
+  const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  const [query, setQuery] = useState("");
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [locationId, setLocationId] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
-  const activeFilters = [
-    category !== "todos",
-    location !== "Todos os locais",
-  ].filter(Boolean).length;
+  useEffect(() => {
+    Promise.all([
+      gqlFetch<{ listItems: { results: Item[] } }>(LIST_ITEMS),
+      gqlFetch<{ listCategories: { results: Category[] } }>(LIST_CATEGORIES),
+      gqlFetch<{ listLocations: { results: Location[] } }>(LIST_LOCATIONS),
+    ])
+      .then(([itemsData, categoriesData, locationsData]) => {
+        setItems(itemsData.listItems.results.filter((i) => i.status === "available"));
+        setCategories(categoriesData.listCategories.results);
+        setLocations(locationsData.listLocations.results);
+      })
+      .finally(() => setLoadingData(false));
+  }, []);
 
-  const filtered = MOCK_ITEMS.filter((item) => {
-    const matchesCategory =
-      category === "todos" ||
-      item.category.toLowerCase().includes(category.replace("eletronicos", "eletrôn"));
-    const matchesLocation =
-      location === "Todos os locais" || item.location === location;
+  const activeFilters = [categoryId !== null, locationId !== null].filter(Boolean).length;
+
+  const filtered = items.filter((item) => {
+    const matchesCategory = categoryId === null || item.category?.id === categoryId;
+    const matchesLocation = locationId === null || item.location?.id === locationId;
     const matchesQuery =
       query.trim() === "" ||
-      item.description.toLowerCase().includes(query.toLowerCase()) ||
-      item.category.toLowerCase().includes(query.toLowerCase());
+      (item.description ?? "").toLowerCase().includes(query.toLowerCase()) ||
+      (item.category?.name ?? "").toLowerCase().includes(query.toLowerCase());
     return matchesCategory && matchesLocation && matchesQuery;
   });
 
   const hasSearch = query.trim() !== "" || activeFilters > 0;
+
+  function handlePickupSuccess(itemId: string) {
+    setItems((prev) => prev.filter((i) => i.id !== itemId));
+    setSelectedItem(null);
+  }
 
   return (
     <div className="min-h-screen bg-base-100 flex flex-col">
@@ -223,40 +289,51 @@ export default function StudentSearch() {
           />
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-          {CATEGORIES.map((cat) => (
+        {!loadingData && categories.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
             <button
-              key={cat.value}
-              className={`btn btn-sm whitespace-nowrap ${
-                category === cat.value ? "btn-primary" : "btn-ghost border border-base-300"
-              }`}
-              onClick={() => setCategory(cat.value)}
+              className={`btn btn-sm whitespace-nowrap ${categoryId === null ? "btn-primary" : "btn-ghost border border-base-300"}`}
+              onClick={() => setCategoryId(null)}
             >
-              {cat.label}
+              Todos
             </button>
-          ))}
-        </div>
-
-        <div className="flex gap-3 items-center mb-4">
-          <span className="hero-map-pin w-4 h-4 text-base-content/50" />
-          <select
-            className="select select-bordered select-sm flex-1"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          >
-            {LOCATIONS.map((loc) => (
-              <option key={loc}>{loc}</option>
+            {categories.map((cat) => (
+              <button
+                key={cat.id}
+                className={`btn btn-sm whitespace-nowrap ${categoryId === cat.id ? "btn-primary" : "btn-ghost border border-base-300"}`}
+                onClick={() => setCategoryId(cat.id)}
+              >
+                {cat.name}
+              </button>
             ))}
-          </select>
-        </div>
+          </div>
+        )}
+
+        {!loadingData && locations.length > 0 && (
+          <div className="flex gap-3 items-center mb-4">
+            <span className="hero-map-pin w-4 h-4 text-base-content/50" />
+            <select
+              className="select select-bordered select-sm flex-1"
+              value={locationId ?? ""}
+              onChange={(e) => setLocationId(e.target.value || null)}
+            >
+              <option value="">Todos os locais</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {activeFilters > 0 && (
           <div className="flex items-center gap-2 mb-4">
             <button
               className="btn btn-xs btn-outline btn-error"
               onClick={() => {
-                setCategory("todos");
-                setLocation("Todos os locais");
+                setCategoryId(null);
+                setLocationId(null);
               }}
             >
               Limpar filtros ({activeFilters})
@@ -264,7 +341,11 @@ export default function StudentSearch() {
           </div>
         )}
 
-        {hasSearch ? (
+        {loadingData ? (
+          <div className="flex justify-center py-16">
+            <span className="loading loading-spinner loading-lg text-primary" />
+          </div>
+        ) : hasSearch ? (
           <>
             <p className="text-sm text-base-content/60 mb-3">
               {filtered.length === 0
@@ -276,20 +357,28 @@ export default function StudentSearch() {
                 <div key={item.id} className="card bg-base-200 shadow-sm">
                   <div className="card-body p-4 gap-2">
                     <div className="flex items-center gap-2 text-xs text-base-content/60">
-                      <span className="badge badge-ghost badge-sm">{item.category}</span>
+                      {item.category && (
+                        <span className="badge badge-ghost badge-sm">{item.category.name}</span>
+                      )}
                       <span className="text-base-content/40">·</span>
                       <span>{item.code}</span>
                     </div>
-                    <p className="text-sm leading-snug">{item.description}</p>
+                    <p className="text-sm leading-snug">
+                      {item.description ?? "Aguardando descrição..."}
+                    </p>
                     <div className="flex items-center gap-3 text-xs text-base-content/50">
-                      <span className="flex items-center gap-1">
-                        <span className="hero-map-pin w-3 h-3" />
-                        {item.location}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="hero-calendar w-3 h-3" />
-                        {item.date}
-                      </span>
+                      {item.location && (
+                        <span className="flex items-center gap-1">
+                          <span className="hero-map-pin w-3 h-3" />
+                          {item.location.name}
+                        </span>
+                      )}
+                      {item.foundAt && (
+                        <span className="flex items-center gap-1">
+                          <span className="hero-calendar w-3 h-3" />
+                          {new Date(item.foundAt).toLocaleDateString("pt-BR")}
+                        </span>
+                      )}
                     </div>
                     <div className="card-actions justify-end mt-1">
                       <button
@@ -309,14 +398,18 @@ export default function StudentSearch() {
             <span className="hero-magnifying-glass w-12 h-12 text-base-content/20 mb-4" />
             <p className="font-semibold text-base-content/60 mb-1">Descreva o que você perdeu</p>
             <p className="text-sm text-base-content/40">
-              Use a barra de busca, selecione a categoria, o local ou a data aproximada para encontrar seu objeto.
+              Use a barra de busca, selecione a categoria ou o local para encontrar seu objeto.
             </p>
           </div>
         )}
       </div>
 
       {selectedItem && (
-        <PickupModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+        <PickupModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onSuccess={() => handlePickupSuccess(selectedItem.id)}
+        />
       )}
     </div>
   );
