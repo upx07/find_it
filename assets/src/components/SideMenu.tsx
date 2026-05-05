@@ -22,12 +22,10 @@ export default function SideMenu({ open, onClose }: Props) {
       <div className="w-64 bg-base-100 shadow-xl p-6 flex flex-col gap-1">
         <div className="mb-4 pb-4 border-b border-base-200">
           <div className="flex items-center gap-3">
-            <div className="avatar placeholder">
-              <div className="bg-primary text-primary-content rounded-full w-10">
-                <span className="text-sm font-bold">
-                  {user?.name?.charAt(0).toUpperCase()}
-                </span>
-              </div>
+            <div className="w-12 h-12 rounded-full bg-primary text-primary-content flex items-center justify-center shrink-0">
+              <span className="text-xl font-bold leading-none">
+                {user?.name?.charAt(0).toUpperCase()}
+              </span>
             </div>
             <div>
               <p className="font-semibold text-sm leading-tight">{user?.name}</p>
