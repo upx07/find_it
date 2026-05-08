@@ -10,9 +10,16 @@ import StudentSearch from "./pages/StudentSearch";
 import StaffDashboard from "./pages/StaffDashboard";
 import NotFound from "./pages/NotFound";
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
+function RequireAuth({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
   return token ? <>{children}</> : <Navigate to="/login" replace />;
+}
+
+function RequireRole({ roles, children }: { roles: string[]; children: React.ReactNode }) {
+  const { token, user } = useAuth();
+  if (!token) return <Navigate to="/login" replace />;
+  if (!user || !roles.includes(user.role)) return <Navigate to="/" replace />;
+  return <>{children}</>;
 }
 
 function AppRoutes() {
@@ -23,21 +30,21 @@ function AppRoutes() {
       <Route path="/register" element={<Register />} />
       <Route path="/confirmar-email" element={<ConfirmEmail />} />
       <Route path="/aguardando-aprovacao" element={<PendingApproval />} />
-      <Route
-        path="/admin/aprovacoes"
-        element={
-          <PrivateRoute>
-            <AccessRequests />
-          </PrivateRoute>
-        }
-      />
       <Route path="/buscar" element={<StudentSearch />} />
       <Route
         path="/staff"
         element={
-          <PrivateRoute>
+          <RequireRole roles={["staff", "admin"]}>
             <StaffDashboard />
-          </PrivateRoute>
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/admin/aprovacoes"
+        element={
+          <RequireRole roles={["admin"]}>
+            <AccessRequests />
+          </RequireRole>
         }
       />
       <Route path="*" element={<NotFound />} />

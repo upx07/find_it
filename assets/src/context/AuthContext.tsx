@@ -9,6 +9,22 @@ interface User {
   active: boolean;
 }
 
+const USER_KEY = "findit_user";
+
+function loadUser(): User | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveUser(user: User | null) {
+  if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+  else localStorage.removeItem(USER_KEY);
+}
+
 interface AuthContextValue {
   user: User | null;
   token: string | null;
@@ -60,8 +76,13 @@ const REGISTER = `
 `;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(loadUser);
   const [token, setTokenState] = useState<string | null>(getToken());
+
+  function persistUser(u: User | null) {
+    saveUser(u);
+    setUser(u);
+  }
 
   async function login(email: string, password: string) {
     const data = await gqlFetch<{
@@ -70,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token: jwt, ...userFields } = data.signIn;
     setToken(jwt);
     setTokenState(jwt);
-    setUser(userFields);
+    persistUser(userFields);
   }
 
   async function register(fields: RegisterFields) {
@@ -90,12 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { result, metadata } = data.registerWithPassword;
     setToken(metadata.token);
     setTokenState(metadata.token);
-    setUser(result);
+    persistUser(result);
     return { role: result.role };
   }
 
   function logout() {
     clearToken();
+    saveUser(null);
     setTokenState(null);
     setUser(null);
   }
