@@ -20,9 +20,11 @@ defmodule FindIt.Workers.AiPipelineWorker do
 
     with {:ok, image_base64} <- read_image(item.image_url),
          {:ok, result} <- call_llm(image_base64) do
+      description = if is_nil(item.description) or item.description == "", do: result.description, else: item.description
+
       item
       |> Ash.Changeset.for_update(:mark_ai_processed, %{
-        description: result.description,
+        description: description,
         ai_tags: result.tags
       })
       |> Ash.update!(domain: FindIt.Inventory)

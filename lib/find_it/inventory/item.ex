@@ -42,6 +42,16 @@ defmodule FindIt.Inventory.Item do
         code = "OBJ-#{String.pad_leading(to_string(count + 1), 3, "0")}"
         Ash.Changeset.force_change_attribute(changeset, :code, code)
       end
+
+      change after_action(fn _changeset, item, _context ->
+        if item.image_url do
+          %{item_id: item.id}
+          |> FindIt.Workers.AiPipelineWorker.new()
+          |> Oban.insert()
+        end
+
+        {:ok, item}
+      end)
     end
 
     update :update_status do

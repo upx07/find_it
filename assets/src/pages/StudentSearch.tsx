@@ -56,147 +56,6 @@ const LIST_LOCATIONS = `
   }
 `;
 
-const CREATE_PICKUP = `
-  mutation CreatePickup($input: CreatePickupInput!) {
-    createPickup(input: $input) {
-      result { id }
-    }
-  }
-`;
-
-interface PickupModalProps {
-  item: Item;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function PickupModal({ item, onClose, onSuccess }: PickupModalProps) {
-  const [form, setForm] = useState({ nome: "", ra: "", cpf: "", data: "" });
-  const [submitted, setSubmitted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      await gqlFetch(CREATE_PICKUP, {
-        input: {
-          studentName: form.nome,
-          studentRa: form.ra,
-          studentCpf: form.cpf,
-          retrievedAt: form.data,
-          itemId: item.id,
-        },
-      });
-      setSubmitted(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao solicitar retirada");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <dialog className="modal modal-open">
-      <div className="modal-box">
-        {submitted ? (
-          <div className="text-center py-6">
-            <span className="hero-check-circle w-12 h-12 text-success mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-2">Retirada solicitada!</h3>
-            <p className="text-sm text-base-content/70 mb-6">
-              Compareça à secretaria com um documento de identificação para retirar o item{" "}
-              <strong>{item.code}</strong>.
-            </p>
-            <button className="btn btn-primary" onClick={onSuccess}>
-              Fechar
-            </button>
-          </div>
-        ) : (
-          <>
-            <h3 className="font-bold text-lg mb-1">Solicitar Retirada</h3>
-            <p className="text-sm text-base-content/70 mb-4">
-              {item.code} · {item.category?.name}
-            </p>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              <label className="form-control">
-                <div className="label">
-                  <span className="label-text">Nome completo</span>
-                </div>
-                <input
-                  type="text"
-                  className="input input-bordered w-full"
-                  placeholder="Seu nome completo"
-                  required
-                  value={form.nome}
-                  onChange={(e) => setForm({ ...form, nome: e.target.value })}
-                />
-              </label>
-              <label className="form-control">
-                <div className="label">
-                  <span className="label-text">RA (Registro Acadêmico)</span>
-                </div>
-                <input
-                  type="text"
-                  className="input input-bordered w-full"
-                  placeholder="Ex.: 236085"
-                  required
-                  value={form.ra}
-                  onChange={(e) => setForm({ ...form, ra: e.target.value })}
-                />
-              </label>
-              <label className="form-control">
-                <div className="label">
-                  <span className="label-text">CPF</span>
-                </div>
-                <input
-                  type="text"
-                  className="input input-bordered w-full"
-                  placeholder="000.000.000-00"
-                  required
-                  value={form.cpf}
-                  onChange={(e) => setForm({ ...form, cpf: e.target.value })}
-                />
-              </label>
-              <label className="form-control">
-                <div className="label">
-                  <span className="label-text">Data de retirada</span>
-                </div>
-                <input
-                  type="date"
-                  className="input input-bordered w-full"
-                  required
-                  value={form.data}
-                  onChange={(e) => setForm({ ...form, data: e.target.value })}
-                />
-              </label>
-
-              {error && (
-                <div className="alert alert-error py-2 text-sm">
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <div className="modal-action mt-2">
-                <button type="button" className="btn btn-ghost" onClick={onClose} disabled={loading}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading
-                    ? <span className="loading loading-spinner loading-sm" />
-                    : "Confirmar retirada"}
-                </button>
-              </div>
-            </form>
-          </>
-        )}
-      </div>
-      <div className="modal-backdrop" onClick={onClose} />
-    </dialog>
-  );
-}
-
 export default function StudentSearch() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -210,7 +69,6 @@ export default function StudentSearch() {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -239,11 +97,6 @@ export default function StudentSearch() {
   });
 
   const hasSearch = query.trim() !== "" || activeFilters > 0;
-
-  function handlePickupSuccess(itemId: string) {
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
-    setSelectedItem(null);
-  }
 
   return (
     <div className="min-h-screen bg-base-100 flex flex-col">
@@ -275,7 +128,7 @@ export default function StudentSearch() {
         </p>
         <h1 className="text-2xl font-bold mb-1">Perdeu algo no campus?</h1>
         <p className="text-sm text-base-content/60 mb-5">
-          Descreva o objeto, selecione o local e a data aproximada.
+          Encontrou seu objeto? Compareça com um documento à secretaria para retirá-lo.
         </p>
 
         <div className="relative mb-4">
@@ -331,10 +184,7 @@ export default function StudentSearch() {
           <div className="flex items-center gap-2 mb-4">
             <button
               className="btn btn-xs btn-outline btn-error"
-              onClick={() => {
-                setCategoryId(null);
-                setLocationId(null);
-              }}
+              onClick={() => { setCategoryId(null); setLocationId(null); }}
             >
               Limpar filtros ({activeFilters})
             </button>
@@ -366,27 +216,25 @@ export default function StudentSearch() {
                     <p className="text-sm leading-snug">
                       {item.description ?? "Aguardando descrição..."}
                     </p>
-                    <div className="flex items-center gap-3 text-xs text-base-content/50">
-                      {item.location && (
-                        <span className="flex items-center gap-1">
-                          <span className="hero-map-pin w-3 h-3" />
-                          {item.location.name}
-                        </span>
-                      )}
-                      {item.foundAt && (
-                        <span className="flex items-center gap-1">
-                          <span className="hero-calendar w-3 h-3" />
-                          {new Date(item.foundAt).toLocaleDateString("pt-BR")}
-                        </span>
-                      )}
-                    </div>
-                    <div className="card-actions justify-end mt-1">
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => setSelectedItem(item)}
-                      >
-                        Solicitar Retirada
-                      </button>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 text-xs text-base-content/50">
+                        {item.location && (
+                          <span className="flex items-center gap-1">
+                            <span className="hero-map-pin w-3 h-3" />
+                            {item.location.name}
+                          </span>
+                        )}
+                        {item.foundAt && (
+                          <span className="flex items-center gap-1">
+                            <span className="hero-calendar w-3 h-3" />
+                            {new Date(item.foundAt).toLocaleDateString("pt-BR")}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-primary font-medium flex items-center gap-1">
+                        <span className="hero-building-office-2 w-3 h-3" />
+                        Retirar na secretaria
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -403,14 +251,6 @@ export default function StudentSearch() {
           </div>
         )}
       </div>
-
-      {selectedItem && (
-        <PickupModal
-          item={selectedItem}
-          onClose={() => setSelectedItem(null)}
-          onSuccess={() => handlePickupSuccess(selectedItem.id)}
-        />
-      )}
     </div>
   );
 }

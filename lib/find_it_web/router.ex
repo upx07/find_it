@@ -99,6 +99,7 @@ defmodule FindItWeb.Router do
     pipe_through :api
 
     post "/esp32/upload", Esp32Controller, :upload
+    post "/upload", UploadController, :upload
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
