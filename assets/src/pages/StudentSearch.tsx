@@ -18,6 +18,7 @@ interface Item {
   id: string;
   code: string;
   description: string | null;
+  imageUrl: string | null;
   status: "available" | "retrieved";
   foundAt: string | null;
   category: Category | null;
@@ -31,6 +32,7 @@ const LIST_ITEMS = `
         id
         code
         description
+        imageUrl
         status
         foundAt
         category { id name }
@@ -56,10 +58,57 @@ const LIST_LOCATIONS = `
   }
 `;
 
+function ItemDetailModal({ item, onClose }: { item: Item; onClose: () => void }) {
+  return (
+    <dialog className="modal modal-open modal-bottom sm:modal-middle">
+      <div className="modal-box rounded-t-2xl sm:rounded-2xl p-0 overflow-hidden max-w-sm">
+        {item.imageUrl ? (
+          <img src={item.imageUrl} alt={item.description ?? item.code} className="w-full max-h-64 object-cover" />
+        ) : (
+          <div className="w-full h-24 bg-base-200 flex items-center justify-center">
+            <span className="hero-photo w-10 h-10 text-base-content/20" />
+          </div>
+        )}
+        <div className="p-5 flex flex-col gap-3">
+          <div>
+            <p className="font-bold text-base">{item.code}</p>
+            {item.category && <p className="text-xs text-base-content/50">{item.category.name}</p>}
+          </div>
+          <p className="text-sm text-base-content/80 leading-relaxed">
+            {item.description ?? "Aguardando descrição..."}
+          </p>
+          <div className="flex flex-col gap-1 text-xs text-base-content/50">
+            {item.location && (
+              <span className="flex items-center gap-1">
+                <span className="hero-map-pin w-3 h-3" />{item.location.name}
+              </span>
+            )}
+            {item.foundAt && (
+              <span className="flex items-center gap-1">
+                <span className="hero-calendar w-3 h-3" />
+                Encontrado em {new Date(item.foundAt).toLocaleDateString("pt-BR")}
+              </span>
+            )}
+          </div>
+          <div className="alert alert-info py-2 text-xs">
+            <span className="hero-building-office-2 w-4 h-4 shrink-0" />
+            <span>Compareça à secretaria com um documento de identificação para retirar.</span>
+          </div>
+          <div className="modal-action mt-0">
+            <button className="btn btn-primary btn-sm w-full" onClick={onClose}>Fechar</button>
+          </div>
+        </div>
+      </div>
+      <div className="modal-backdrop" onClick={onClose} />
+    </dialog>
+  );
+}
+
 export default function StudentSearch() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detailItem, setDetailItem] = useState<Item | null>(null);
 
   const [items, setItems] = useState<Item[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -96,7 +145,7 @@ export default function StudentSearch() {
     return matchesCategory && matchesLocation && matchesQuery;
   });
 
-  const hasSearch = query.trim() !== "" || activeFilters > 0;
+  const hasActiveSearch = query.trim() !== "" || activeFilters > 0;
 
   return (
     <div className="min-h-screen bg-base-100 flex flex-col">
@@ -121,6 +170,7 @@ export default function StudentSearch() {
         )}
       </nav>
       <SideMenu open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      {detailItem && <ItemDetailModal item={detailItem} onClose={() => setDetailItem(null)} />}
 
       <div className="flex-1 px-4 py-6 max-w-lg mx-auto w-full">
         <p className="text-xs font-semibold tracking-widest text-primary uppercase mb-1">
@@ -195,27 +245,38 @@ export default function StudentSearch() {
           <div className="flex justify-center py-16">
             <span className="loading loading-spinner loading-lg text-primary" />
           </div>
-        ) : hasSearch ? (
+        ) : (
           <>
             <p className="text-sm text-base-content/60 mb-3">
               {filtered.length === 0
-                ? "Nenhum objeto encontrado"
-                : `${filtered.length} objeto${filtered.length !== 1 ? "s" : ""} encontrado${filtered.length !== 1 ? "s" : ""}`}
+                ? hasActiveSearch ? "Nenhum objeto encontrado para essa busca" : "Nenhum objeto disponível no momento"
+                : `${filtered.length} objeto${filtered.length !== 1 ? "s" : ""} disponíve${filtered.length !== 1 ? "is" : "l"}`}
             </p>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 pb-6">
               {filtered.map((item) => (
-                <div key={item.id} className="card bg-base-200 shadow-sm">
+                <div key={item.id} className="card bg-base-200 shadow-sm cursor-pointer" onClick={() => setDetailItem(item)}>
                   <div className="card-body p-4 gap-2">
-                    <div className="flex items-center gap-2 text-xs text-base-content/60">
-                      {item.category && (
-                        <span className="badge badge-ghost badge-sm">{item.category.name}</span>
+                    <div className="flex gap-3">
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.description ?? item.code}
+                          className="w-16 h-16 object-cover rounded-lg shrink-0"
+                        />
                       )}
-                      <span className="text-base-content/40">·</span>
-                      <span>{item.code}</span>
+                      <div className="flex-1 min-w-0 flex flex-col gap-1">
+                        <div className="flex items-center gap-2 text-xs text-base-content/60">
+                          {item.category && (
+                            <span className="badge badge-ghost badge-sm">{item.category.name}</span>
+                          )}
+                          <span className="text-base-content/40">·</span>
+                          <span>{item.code}</span>
+                        </div>
+                        <p className="text-sm leading-snug line-clamp-2">
+                          {item.description ?? "Aguardando descrição..."}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-sm leading-snug">
-                      {item.description ?? "Aguardando descrição..."}
-                    </p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 text-xs text-base-content/50">
                         {item.location && (
@@ -241,14 +302,6 @@ export default function StudentSearch() {
               ))}
             </div>
           </>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <span className="hero-magnifying-glass w-12 h-12 text-base-content/20 mb-4" />
-            <p className="font-semibold text-base-content/60 mb-1">Descreva o que você perdeu</p>
-            <p className="text-sm text-base-content/40">
-              Use a barra de busca, selecione a categoria ou o local para encontrar seu objeto.
-            </p>
-          </div>
         )}
       </div>
     </div>

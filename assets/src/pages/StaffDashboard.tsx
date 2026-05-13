@@ -292,6 +292,75 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
   );
 }
 
+// --- Item Detail Modal ---
+
+interface ItemDetailModalProps {
+  item: Item;
+  onClose: () => void;
+  onConfirmPickup: () => void;
+  onReopen: () => void;
+  reopening: boolean;
+}
+
+function ItemDetailModal({ item, onClose, onConfirmPickup, onReopen, reopening }: ItemDetailModalProps) {
+  return (
+    <dialog className="modal modal-open modal-bottom sm:modal-middle">
+      <div className="modal-box rounded-t-2xl sm:rounded-2xl p-0 overflow-hidden max-w-sm">
+        {item.imageUrl ? (
+          <img src={item.imageUrl} alt={item.description ?? item.code} className="w-full max-h-64 object-cover" />
+        ) : (
+          <div className="w-full h-24 bg-base-200 flex items-center justify-center">
+            <span className="hero-photo w-10 h-10 text-base-content/20" />
+          </div>
+        )}
+        <div className="p-5 flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-bold text-base">{item.code}</p>
+              {item.category && <p className="text-xs text-base-content/50">{item.category.name}</p>}
+            </div>
+            <span className={`badge badge-sm ${item.status === "available" ? "badge-success" : "badge-neutral"}`}>
+              {item.status === "available" ? "Disponível" : "Devolvido"}
+            </span>
+          </div>
+
+          <p className="text-sm text-base-content/80 leading-relaxed">
+            {item.description ?? (item.aiProcessed ? "Sem descrição" : "Aguardando descrição da IA...")}
+          </p>
+
+          <div className="flex flex-col gap-1 text-xs text-base-content/50">
+            {item.location && (
+              <span className="flex items-center gap-1">
+                <span className="hero-map-pin w-3 h-3" />{item.location.name}
+              </span>
+            )}
+            {item.foundAt && (
+              <span className="flex items-center gap-1">
+                <span className="hero-calendar w-3 h-3" />
+                Encontrado em {new Date(item.foundAt).toLocaleDateString("pt-BR")}
+              </span>
+            )}
+          </div>
+
+          <div className="modal-action mt-1 gap-2">
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>Fechar</button>
+            {item.status === "available" ? (
+              <button className="btn btn-primary btn-sm" onClick={() => { onClose(); onConfirmPickup(); }}>
+                Confirmar retirada
+              </button>
+            ) : (
+              <button className="btn btn-ghost btn-sm" disabled={reopening} onClick={() => { onClose(); onReopen(); }}>
+                {reopening ? <span className="loading loading-spinner loading-xs" /> : "Reabrir"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="modal-backdrop" onClick={onClose} />
+    </dialog>
+  );
+}
+
 // --- Dashboard ---
 
 export default function StaffDashboard() {
@@ -302,6 +371,7 @@ export default function StaffDashboard() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [newItemOpen, setNewItemOpen] = useState(false);
   const [confirmItem, setConfirmItem] = useState<Item | null>(null);
+  const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [reopening, setReopening] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -399,22 +469,33 @@ export default function StaffDashboard() {
         ) : (
           <div className="flex flex-col gap-3 pb-24">
             {items.map((item) => (
-              <div key={item.id} className="card bg-base-200 shadow-sm">
+              <div key={item.id} className="card bg-base-200 shadow-sm cursor-pointer" onClick={() => setDetailItem(item)}>
                 <div className="card-body p-4 gap-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 text-xs text-base-content/60">
-                      {item.category && <span className="badge badge-ghost badge-sm">{item.category.name}</span>}
-                      <span>{item.code}</span>
-                      {!item.aiProcessed && <span className="badge badge-warning badge-sm">Processando IA</span>}
-                    </div>
-                    <span className={`badge badge-sm ${item.status === "available" ? "badge-success" : "badge-neutral"}`}>
-                      {item.status === "available" ? "Disponível" : "Devolvido"}
-                    </span>
-                  </div>
+                  <div className="flex gap-3">
+                    {item.imageUrl && (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.description ?? item.code}
+                        className="w-16 h-16 object-cover rounded-lg shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0 flex flex-col gap-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs text-base-content/60 flex-wrap">
+                          {item.category && <span className="badge badge-ghost badge-sm">{item.category.name}</span>}
+                          <span>{item.code}</span>
+                          {!item.aiProcessed && <span className="badge badge-warning badge-sm">Processando IA</span>}
+                        </div>
+                        <span className={`badge badge-sm shrink-0 ${item.status === "available" ? "badge-success" : "badge-neutral"}`}>
+                          {item.status === "available" ? "Disponível" : "Devolvido"}
+                        </span>
+                      </div>
 
-                  <p className="text-sm leading-snug line-clamp-2">
-                    {item.description ?? "Aguardando descrição da IA..."}
-                  </p>
+                      <p className="text-sm leading-snug line-clamp-2">
+                        {item.description ?? "Aguardando descrição da IA..."}
+                      </p>
+                    </div>
+                  </div>
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 text-xs text-base-content/50">
@@ -431,14 +512,14 @@ export default function StaffDashboard() {
                       )}
                     </div>
                     {item.status === "available" ? (
-                      <button className="btn btn-primary btn-xs" onClick={() => setConfirmItem(item)}>
+                      <button className="btn btn-primary btn-xs" onClick={(e) => { e.stopPropagation(); setConfirmItem(item); }}>
                         Confirmar retirada
                       </button>
                     ) : (
                       <button
                         className="btn btn-ghost btn-xs"
                         disabled={reopening === item.id}
-                        onClick={() => handleReopen(item)}
+                        onClick={(e) => { e.stopPropagation(); handleReopen(item); }}
                       >
                         {reopening === item.id
                           ? <span className="loading loading-spinner loading-xs" />
@@ -475,6 +556,16 @@ export default function StaffDashboard() {
           locations={locations}
           onClose={() => setNewItemOpen(false)}
           onCreated={handleItemCreated}
+        />
+      )}
+
+      {detailItem && (
+        <ItemDetailModal
+          item={detailItem}
+          onClose={() => setDetailItem(null)}
+          onConfirmPickup={() => setConfirmItem(detailItem)}
+          onReopen={() => handleReopen(detailItem)}
+          reopening={reopening === detailItem.id}
         />
       )}
 
