@@ -17,6 +17,7 @@ defmodule FindIt.Accounts.User do
     mutations do
       create :register_with_password, :register_with_password
       update :approve_user, :update_active_user
+      destroy :reject_user, :reject_user
     end
   end
 
@@ -223,6 +224,10 @@ defmodule FindIt.Accounts.User do
       change set_attribute(:active, true)
     end
 
+    destroy :reject_user do
+      primary? false
+    end
+
     read :read_access_requests do
       filter expr(active == false and role != :student)
       prepare build(sort: [created_at: :desc])
@@ -296,6 +301,10 @@ defmodule FindIt.Accounts.User do
     end
 
     policy action(:update_active_user) do
+      authorize_if actor_attribute_equals(:role, :admin)
+    end
+
+    policy action(:reject_user) do
       authorize_if actor_attribute_equals(:role, :admin)
     end
   end

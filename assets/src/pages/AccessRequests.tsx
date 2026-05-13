@@ -40,6 +40,14 @@ const APPROVE_USER = `
   }
 `;
 
+const REJECT_USER = `
+  mutation RejectUser($id: ID!) {
+    rejectUser(id: $id) {
+      result { id }
+    }
+  }
+`;
+
 export default function AccessRequests() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -47,6 +55,7 @@ export default function AccessRequests() {
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,6 +86,18 @@ export default function AccessRequests() {
       setError(err instanceof Error ? err.message : "Erro ao aprovar usuário");
     } finally {
       setApproving(null);
+    }
+  }
+
+  async function handleReject(id: string) {
+    setRejecting(id);
+    try {
+      await gqlFetch(REJECT_USER, { id });
+      setRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao rejeitar pedido");
+    } finally {
+      setRejecting(null);
     }
   }
 
@@ -148,10 +169,19 @@ export default function AccessRequests() {
                     </span>
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-end gap-2">
+                    <button
+                      className="btn btn-ghost btn-sm text-error"
+                      disabled={rejecting === req.id || approving === req.id}
+                      onClick={() => handleReject(req.id)}
+                    >
+                      {rejecting === req.id
+                        ? <span className="loading loading-spinner loading-xs" />
+                        : "Rejeitar"}
+                    </button>
                     <button
                       className="btn btn-primary btn-sm"
-                      disabled={approving === req.id}
+                      disabled={approving === req.id || rejecting === req.id}
                       onClick={() => handleApprove(req.id)}
                     >
                       {approving === req.id
