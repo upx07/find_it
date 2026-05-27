@@ -4,6 +4,7 @@ defmodule FindItWeb.CaptureController do
   require Logger
 
   @request_timeout 10_000
+  @max_image_bytes 5_000_000
 
   def capture(conn, _params) do
     esp32_url = Application.get_env(:find_it, :esp32_url, "http://findit-esp.local")
@@ -27,6 +28,13 @@ defmodule FindItWeb.CaptureController do
         |> put_status(504)
         |> json(%{error: "esp_timeout"})
 
+      {:error, :payload_too_large} ->
+        Logger.warning("ESP32 returned oversized payload at #{url}")
+
+        conn
+        |> put_status(502)
+        |> json(%{error: "esp_payload_too_large"})
+
       {:error, reason} ->
         Logger.warning("ESP32 capture failed at #{url}: #{inspect(reason)}")
 
@@ -43,8 +51,13 @@ defmodule FindItWeb.CaptureController do
            receive_timeout: @request_timeout,
            pool_timeout: @request_timeout
          ) do
-      {:ok, %Finch.Response{status: 200, body: body}} when byte_size(body) > 0 ->
+      {:ok, %Finch.Response{status: 200, body: body}}
+      when byte_size(body) > 0 and byte_size(body) <= @max_image_bytes ->
         {:ok, body}
+
+      {:ok, %Finch.Response{status: 200, body: body}}
+      when byte_size(body) > @max_image_bytes ->
+        {:error, :payload_too_large}
 
       {:ok, %Finch.Response{status: status}} ->
         {:error, {:bad_status, status}}

@@ -16,7 +16,14 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
+#include <esp_task_wdt.h>
 #include "esp_camera.h"
+
+// Watchdog timeout (seconds). loop() must reset it within this window.
+#define WDT_TIMEOUT_SEC 15
+
+// How often loop() checks Wi-Fi and tries to reconnect if dropped.
+#define WIFI_CHECK_INTERVAL_MS 5000
 
 // AI-Thinker ESP32-CAM pin map (same on DFR0602)
 #define PWDN_GPIO_NUM     32
@@ -136,8 +143,11 @@ static void handleCapture() {
     return;
   }
 
+  char len_str[16];
+  snprintf(len_str, sizeof(len_str), "%u", (unsigned) fb->len);
+
   server.sendHeader("Content-Type", "image/jpeg");
-  server.sendHeader("Content-Length", String(fb->len));
+  server.sendHeader("Content-Length", len_str);
   server.sendHeader("Cache-Control", "no-store");
   server.send(200);
   server.client().write(fb->buf, fb->len);
@@ -187,9 +197,25 @@ void setup() {
   statusLed(true);
   delay(500);
   statusLed(false);
+
+  esp_task_wdt_init(WDT_TIMEOUT_SEC, true);
+  esp_task_wdt_add(NULL);
 }
 
 void loop() {
+  esp_task_wdt_reset();
   server.handleClient();
+
+  static uint32_t last_wifi_check = 0;
+  uint32_t now = millis();
+  if (now - last_wifi_check > WIFI_CHECK_INTERVAL_MS) {
+    last_wifi_check = now;
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("Wi-Fi link lost, reconnecting...");
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    }
+  }
+
   delay(1);
 }

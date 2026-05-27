@@ -172,6 +172,11 @@ interface NewItemModalProps {
   onCreated: (item: Item) => void;
 }
 
+interface ImageResponse {
+  image_url?: string;
+  error?: string;
+}
+
 async function uploadImage(file: File): Promise<string> {
   const token = localStorage.getItem("findit_auth_token");
   const body = new FormData();
@@ -182,9 +187,10 @@ async function uploadImage(file: File): Promise<string> {
     body,
   });
   if (!res.ok) throw new Error(`Upload falhou: ${res.statusText}`);
-  const json = await res.json();
+  const json = (await res.json()) as ImageResponse;
   if (json.error) throw new Error(json.error);
-  return json.image_url as string;
+  if (!json.image_url) throw new Error("Resposta inválida do servidor");
+  return json.image_url;
 }
 
 function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModalProps) {
@@ -196,6 +202,12 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
   const [capturing, setCapturing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -224,7 +236,7 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
         if (res.status === 502) throw new Error("Câmera ESP32 indisponível — verifique se está ligada");
         throw new Error(`Falha ao capturar (HTTP ${res.status})`);
       }
-      const json = await res.json();
+      const json = (await res.json()) as ImageResponse;
       if (!json.image_url) throw new Error("Resposta inválida do servidor");
       setDirectImageUrl(json.image_url);
       setImagePreview(json.image_url);
