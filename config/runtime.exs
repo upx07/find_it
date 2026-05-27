@@ -2,6 +2,8 @@ import Config
 
 config :find_it, openai_api_key: System.get_env("OPENAI_API_KEY")
 
+config :find_it, :esp32_url, System.get_env("ESP32_URL") || "http://findit-esp.local"
+
 # config/runtime.exs is executed for all environments, including
 # during releases. It is executed after compilation and before the
 # system starts, so it is typically used to load production configuration
