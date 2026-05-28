@@ -10,6 +10,15 @@ export default defineConfig({
     manifest: true,
     rollupOptions: {
       input: "./index.html",
+      output: {
+        entryFileNames: "assets/index.js",
+        chunkFileNames: "assets/chunks/[name].js",
+        assetFileNames: (info) => {
+          const name = info.names?.[0] ?? "";
+          if (name.endsWith(".css")) return "assets/css/app.css";
+          return "assets/[name][extname]";
+        },
+      },
     },
   },
   server: {

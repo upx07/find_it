@@ -62,7 +62,7 @@ defmodule FindItWeb.Router do
   scope "/", FindItWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    get "/", PageController, :index
     auth_routes AuthController, FindIt.Accounts.User, path: "/auth"
     sign_out_route AuthController
 
@@ -93,6 +93,12 @@ defmodule FindItWeb.Router do
       auth_routes_prefix: "/auth",
       overrides: [FindItWeb.AuthOverrides, Elixir.AshAuthentication.Phoenix.Overrides.DaisyUI]
     )
+  end
+
+  scope "/", FindItWeb do
+    pipe_through :browser
+
+    get "/*path", PageController, :index
   end
 
   scope "/api", FindItWeb do
