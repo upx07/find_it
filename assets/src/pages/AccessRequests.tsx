@@ -17,15 +17,13 @@ interface AccessRequest {
 const LIST_REQUESTS = `
   query {
     listAccessRequests {
-      results {
-        id
-        name
-        email
-        ra
-        setor
-        role
-        createdAt
-      }
+      id
+      name
+      email
+      ra
+      setor
+      role
+      createdAt
     }
   }
 `;
@@ -68,8 +66,8 @@ export default function AccessRequests() {
 
   async function fetchRequests() {
     try {
-      const data = await gqlFetch<{ listAccessRequests: { results: AccessRequest[] } }>(LIST_REQUESTS);
-      setRequests(data.listAccessRequests.results);
+      const data = await gqlFetch<{ listAccessRequests: AccessRequest[] }>(LIST_REQUESTS);
+      setRequests(data.listAccessRequests);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar pedidos");
     } finally {

@@ -28,7 +28,7 @@ function saveUser(user: User | null) {
 interface AuthContextValue {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (fields: RegisterFields) => Promise<{ role: string }>;
   logout: () => void;
 }
@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(u);
   }
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string): Promise<User> {
     const data = await gqlFetch<{
       signIn: User & { token: string };
     }>(SIGN_IN, { email, password });
@@ -92,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(jwt);
     setTokenState(jwt);
     persistUser(userFields);
+    return userFields;
   }
 
   async function register(fields: RegisterFields) {

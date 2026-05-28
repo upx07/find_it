@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -10,15 +10,24 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
-      navigate("/staff");
+      const loggedUser = await login(email, password);
+      if (loggedUser.role === "student") {
+        navigate("/buscar");
+      } else {
+        navigate("/staff");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao fazer login");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("authentication failed")) {
+        setError("Email ou senha incorretos, ou sua conta ainda não foi ativada pelo administrador.");
+      } else {
+        setError(msg || "Erro ao fazer login");
+      }
     } finally {
       setLoading(false);
     }
