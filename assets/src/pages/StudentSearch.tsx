@@ -118,6 +118,7 @@ export default function StudentSearch() {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [locationId, setLocationId] = useState<string | null>(null);
+  const [dateApprox, setDateApprox] = useState<string>("");
 
   useEffect(() => {
     Promise.all([
@@ -133,7 +134,7 @@ export default function StudentSearch() {
       .finally(() => setLoadingData(false));
   }, []);
 
-  const activeFilters = [categoryId !== null, locationId !== null].filter(Boolean).length;
+  const activeFilters = [categoryId !== null, locationId !== null, dateApprox !== ""].filter(Boolean).length;
 
   const filtered = items.filter((item) => {
     const matchesCategory = categoryId === null || item.category?.id === categoryId;
@@ -142,7 +143,12 @@ export default function StudentSearch() {
       query.trim() === "" ||
       (item.description ?? "").toLowerCase().includes(query.toLowerCase()) ||
       (item.category?.name ?? "").toLowerCase().includes(query.toLowerCase());
-    return matchesCategory && matchesLocation && matchesQuery;
+    const matchesDate = (() => {
+      if (!dateApprox || !item.foundAt) return true;
+      const diff = Math.abs(new Date(item.foundAt).getTime() - new Date(dateApprox).getTime());
+      return diff <= 3 * 24 * 60 * 60 * 1000;
+    })();
+    return matchesCategory && matchesLocation && matchesQuery && matchesDate;
   });
 
   const hasActiveSearch = query.trim() !== "" || activeFilters > 0;
@@ -212,21 +218,31 @@ export default function StudentSearch() {
           </div>
         )}
 
-        {!loadingData && locations.length > 0 && (
-          <div className="flex gap-3 items-center mb-4">
-            <span className="hero-map-pin w-4 h-4 text-base-content/50" />
-            <select
-              className="select select-bordered select-sm flex-1"
-              value={locationId ?? ""}
-              onChange={(e) => setLocationId(e.target.value || null)}
-            >
-              <option value="">Todos os locais</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.name}
-                </option>
-              ))}
-            </select>
+        {!loadingData && (
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <div className="flex gap-2 items-center">
+              <span className="hero-map-pin w-4 h-4 text-base-content/50 shrink-0" />
+              <select
+                className="select select-bordered select-sm flex-1"
+                value={locationId ?? ""}
+                onChange={(e) => setLocationId(e.target.value || null)}
+              >
+                <option value="">Todos os locais</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 items-center">
+              <span className="hero-calendar w-4 h-4 text-base-content/50 shrink-0" />
+              <input
+                type="date"
+                className="input input-bordered input-sm flex-1"
+                value={dateApprox}
+                onChange={(e) => setDateApprox(e.target.value)}
+                title="Data aproximada em que perdeu o objeto (±3 dias)"
+              />
+            </div>
           </div>
         )}
 
@@ -234,7 +250,7 @@ export default function StudentSearch() {
           <div className="flex items-center gap-2 mb-4">
             <button
               className="btn btn-xs btn-outline btn-error"
-              onClick={() => { setCategoryId(null); setLocationId(null); }}
+              onClick={() => { setCategoryId(null); setLocationId(null); setDateApprox(""); }}
             >
               Limpar filtros ({activeFilters})
             </button>
