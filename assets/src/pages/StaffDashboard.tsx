@@ -172,6 +172,11 @@ interface NewItemModalProps {
   onCreated: (item: Item) => void;
 }
 
+interface ImageResponse {
+  image_url?: string;
+  error?: string;
+}
+
 async function uploadImage(file: File): Promise<string> {
   const token = localStorage.getItem("findit_auth_token");
   const body = new FormData();
@@ -182,9 +187,10 @@ async function uploadImage(file: File): Promise<string> {
     body,
   });
   if (!res.ok) throw new Error(`Upload falhou: ${res.statusText}`);
-  const json = await res.json();
+  const json = (await res.json()) as ImageResponse;
   if (json.error) throw new Error(json.error);
-  return json.image_url as string;
+  if (!json.image_url) throw new Error("Resposta inválida do servidor");
+  return json.image_url;
 }
 
 function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModalProps) {
@@ -192,13 +198,54 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
   const [form, setForm] = useState({ description: "", categoryId: "", locationId: "", foundAt: today });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [directImageUrl, setDirectImageUrl] = useState<string | null>(null);
+  const [capturing, setCapturing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
     setImageFile(file);
     setImagePreview(file ? URL.createObjectURL(file) : null);
+    setDirectImageUrl(null);
+  }
+
+  function clearImage() {
+    setImageFile(null);
+    setImagePreview(null);
+    setDirectImageUrl(null);
+  }
+
+  async function captureFromEsp() {
+    setError(null);
+    setCapturing(true);
+    try {
+      const token = localStorage.getItem("findit_auth_token");
+      const res = await fetch("/api/capture", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        if (res.status === 504) throw new Error("Câmera ESP32 não respondeu a tempo");
+        if (res.status === 502) throw new Error("Câmera ESP32 indisponível — verifique se está ligada");
+        throw new Error(`Falha ao capturar (HTTP ${res.status})`);
+      }
+      const json = (await res.json()) as ImageResponse;
+      if (!json.image_url) throw new Error("Resposta inválida do servidor");
+      setDirectImageUrl(json.image_url);
+      setImagePreview(json.image_url);
+      setImageFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao capturar foto");
+    } finally {
+      setCapturing(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -206,7 +253,7 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
     setError(null);
     setLoading(true);
     try {
-      const imageUrl = imageFile ? await uploadImage(imageFile) : null;
+      const imageUrl = imageFile ? await uploadImage(imageFile) : directImageUrl;
       const data = await gqlFetch<{ createItem: { result: Item } }>(CREATE_ITEM, {
         input: {
           description: form.description || null,
@@ -236,20 +283,40 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
               <img src={imagePreview} alt="Preview" className="w-full h-28 object-cover rounded-lg" />
               <button
                 type="button" className="btn btn-xs btn-error absolute top-2 right-2"
-                onClick={() => { setImageFile(null); setImagePreview(null); }}
+                onClick={clearImage}
               >
                 Remover
               </button>
             </div>
           ) : (
-            <label className="flex items-center gap-3 h-14 px-4 border-2 border-dashed border-base-300 rounded-lg cursor-pointer hover:border-primary transition-colors">
-              <span className="hero-camera w-6 h-6 text-base-content/30 shrink-0" />
-              <div>
-                <p className="text-sm font-medium">Foto do objeto</p>
-                <p className="text-xs text-base-content/40">A IA descreverá automaticamente</p>
-              </div>
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
-            </label>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm w-full"
+                onClick={captureFromEsp}
+                disabled={capturing}
+              >
+                {capturing ? (
+                  <>
+                    <span className="loading loading-spinner loading-xs" />
+                    Capturando...
+                  </>
+                ) : (
+                  <>
+                    <span className="hero-camera w-5 h-5" />
+                    Capturar com câmera ESP32
+                  </>
+                )}
+              </button>
+              <label className="flex items-center gap-3 h-14 px-4 border-2 border-dashed border-base-300 rounded-lg cursor-pointer hover:border-primary transition-colors">
+                <span className="hero-photo w-6 h-6 text-base-content/30 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">ou enviar arquivo local</p>
+                  <p className="text-xs text-base-content/40">A IA descreverá automaticamente</p>
+                </div>
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
+              </label>
+            </div>
           )}
 
           {/* Descrição */}

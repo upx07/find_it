@@ -100,6 +100,7 @@ defmodule FindItWeb.Router do
 
     post "/esp32/upload", Esp32Controller, :upload
     post "/upload", UploadController, :upload
+    post "/capture", CaptureController, :capture
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
