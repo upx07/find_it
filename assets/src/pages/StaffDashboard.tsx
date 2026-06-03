@@ -232,8 +232,15 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) {
-        if (res.status === 504) throw new Error("Câmera ESP32 não respondeu a tempo");
-        if (res.status === 502) throw new Error("Câmera ESP32 indisponível — verifique se está ligada");
+        const code = await res.json().then((j: ImageResponse) => j.error).catch(() => undefined);
+        if (res.status === 504 || code === "esp_timeout")
+          throw new Error("Câmera ESP32 não respondeu a tempo");
+        if (code === "esp_payload_too_large")
+          throw new Error("A foto da câmera ESP32 é grande demais");
+        if (code === "esp_empty_body")
+          throw new Error("A câmera ESP32 respondeu sem imagem — verifique o firmware da placa");
+        if (res.status === 502 || code === "esp_unreachable")
+          throw new Error("Câmera ESP32 indisponível — verifique se está ligada");
         throw new Error(`Falha ao capturar (HTTP ${res.status})`);
       }
       const json = (await res.json()) as ImageResponse;
