@@ -3,6 +3,7 @@ defmodule FindIt.Inventory.Item do
     otp_app: :find_it,
     domain: FindIt.Inventory,
     data_layer: AshPostgres.DataLayer,
+    primary_read_warning?: false,
     extensions: [AshGraphql.Resource]
 
   graphql do
@@ -34,6 +35,7 @@ defmodule FindIt.Inventory.Item do
 
     read :read do
       primary? true
+      pagination offset?: true, countable: true, required?: false
       prepare build(sort: [created_at: :desc])
     end
 
