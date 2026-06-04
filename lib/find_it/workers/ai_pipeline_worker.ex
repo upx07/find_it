@@ -1,8 +1,11 @@
 defmodule FindIt.Workers.AiPipelineWorker do
   use Oban.Worker, queue: :ai_pipeline, max_attempts: 3
 
+  require Logger
+
   @llm_endpoint "https://api.openai.com/v1/chat/completions"
   @llm_model "gpt-4o-mini"
+  @llm_timeout 60_000
 
   @prompt """
   Analise a imagem de um objeto encontrado em uma universidade brasileira.
@@ -29,7 +32,12 @@ defmodule FindIt.Workers.AiPipelineWorker do
       })
       |> Ash.update!(domain: FindIt.Inventory)
 
+      Logger.info("AI pipeline ok for item #{item_id}")
       :ok
+    else
+      {:error, reason} ->
+        Logger.error("AI pipeline failed for item #{item_id}: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
@@ -50,9 +58,19 @@ defmodule FindIt.Workers.AiPipelineWorker do
   defp call_llm(image_base64) do
     api_key = Application.get_env(:find_it, :openai_api_key)
 
+    if is_nil(api_key) or api_key == "" do
+      {:error, :missing_openai_api_key}
+    else
+      do_call_llm(api_key, image_base64)
+    end
+  end
+
+  defp do_call_llm(api_key, image_base64) do
     body =
       Jason.encode!(%{
         model: @llm_model,
+        # Força a OpenAI a devolver JSON puro (sem markdown), senão o parse falha.
+        response_format: %{type: "json_object"},
         messages: [
           %{
             role: "user",
@@ -74,7 +92,7 @@ defmodule FindIt.Workers.AiPipelineWorker do
         {"authorization", "Bearer #{api_key}"}
       ], body)
 
-    case Finch.request(request, FindIt.Finch) do
+    case Finch.request(request, FindIt.Finch, receive_timeout: @llm_timeout) do
       {:ok, %Finch.Response{status: 200, body: body}} ->
         parse_llm_response(body)
 
@@ -88,11 +106,22 @@ defmodule FindIt.Workers.AiPipelineWorker do
 
   defp parse_llm_response(body) do
     with {:ok, response} <- Jason.decode(body),
-         content <- get_in(response, ["choices", Access.at(0), "message", "content"]),
-         {:ok, result} <- Jason.decode(content) do
-      {:ok, %{description: result["description"], tags: result["tags"]}}
+         content when is_binary(content) <-
+           get_in(response, ["choices", Access.at(0), "message", "content"]),
+         {:ok, result} <- Jason.decode(strip_code_fences(content)) do
+      {:ok, %{description: result["description"], tags: result["tags"] || []}}
     else
-      _ -> {:error, "failed to parse LLM response"}
+      other -> {:error, "failed to parse LLM response: #{inspect(other)}"}
     end
+  end
+
+  # Remove cercas ```json ... ``` que alguns modelos adicionam mesmo com
+  # response_format=json_object desativado em fallback.
+  defp strip_code_fences(content) do
+    content
+    |> String.trim()
+    |> String.replace(~r/^```(?:json)?\s*/i, "")
+    |> String.replace(~r/\s*```$/, "")
+    |> String.trim()
   end
 end
