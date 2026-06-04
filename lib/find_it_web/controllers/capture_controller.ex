@@ -35,6 +35,13 @@ defmodule FindItWeb.CaptureController do
         |> put_status(502)
         |> json(%{error: "esp_payload_too_large"})
 
+      {:error, :empty_body} ->
+        Logger.warning("ESP32 returned 200 with an empty body at #{url}")
+
+        conn
+        |> put_status(502)
+        |> json(%{error: "esp_empty_body"})
+
       {:error, reason} ->
         Logger.warning("ESP32 capture failed at #{url}: #{inspect(reason)}")
 
@@ -58,6 +65,9 @@ defmodule FindItWeb.CaptureController do
       {:ok, %Finch.Response{status: 200, body: body}}
       when byte_size(body) > @max_image_bytes ->
         {:error, :payload_too_large}
+
+      {:ok, %Finch.Response{status: 200, body: ""}} ->
+        {:error, :empty_body}
 
       {:ok, %Finch.Response{status: status}} ->
         {:error, {:bad_status, status}}

@@ -100,6 +100,22 @@ static bool initCamera() {
 static bool connectWifi() {
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
+
+  // Optional static IP (from config.h). Must run BEFORE WiFi.begin().
+  // If STATIC_IP_ADDR is not defined, the board falls back to DHCP.
+#ifdef STATIC_IP_ADDR
+  IPAddress local_ip, gateway, subnet, dns;
+  local_ip.fromString(STATIC_IP_ADDR);
+  gateway.fromString(STATIC_GATEWAY);
+  subnet.fromString(STATIC_SUBNET);
+  dns.fromString(STATIC_DNS);
+  if (!WiFi.config(local_ip, gateway, subnet, dns)) {
+    Serial.println("Static IP config failed, falling back to DHCP");
+  } else {
+    Serial.printf("Using static IP %s\n", STATIC_IP_ADDR);
+  }
+#endif
+
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.printf("Connecting to Wi-Fi SSID '%s'", WIFI_SSID);
 
@@ -143,14 +159,18 @@ static void handleCapture() {
     return;
   }
 
-  char len_str[16];
-  snprintf(len_str, sizeof(len_str), "%u", (unsigned) fb->len);
-
-  server.sendHeader("Content-Type", "image/jpeg");
-  server.sendHeader("Content-Length", len_str);
+  // Let WebServer emit exactly one Content-Type/Content-Length pair:
+  // setContentLength() + send(200, "image/jpeg", "") does that, then we stream
+  // the raw JPEG over the client. The previous bare send(200) with manual
+  // headers produced DUPLICATE Content-Type (text/html + image/jpeg) and
+  // Content-Length (0 + real size) headers — a malformed response that strict
+  // HTTP clients (the Phoenix backend's Finch/Mint) reject, so /capture failed
+  // with a 502 every time.
+  WiFiClient client = server.client();
+  server.setContentLength(fb->len);
   server.sendHeader("Cache-Control", "no-store");
-  server.send(200);
-  server.client().write(fb->buf, fb->len);
+  server.send(200, "image/jpeg", "");
+  client.write(fb->buf, fb->len);
 
   esp_camera_fb_return(fb);
   statusLed(false);
