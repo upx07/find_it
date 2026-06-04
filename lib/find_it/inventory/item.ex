@@ -30,7 +30,12 @@ defmodule FindIt.Inventory.Item do
   end
 
   actions do
-    defaults [:read, :destroy]
+    defaults [:destroy]
+
+    read :read do
+      primary? true
+      prepare build(sort: [created_at: :desc])
+    end
 
     create :create do
       accept [:description, :image_url, :found_at, :category_id, :location_id]

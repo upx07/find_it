@@ -29,6 +29,7 @@ export default defineConfig({
       "/auth": "http://localhost:4000",
       "/rpc": "http://localhost:4000",
       "/api": "http://localhost:4000",
+      "/uploads": "http://localhost:4000",
     },
   },
 });
