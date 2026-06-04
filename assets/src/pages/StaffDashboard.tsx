@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import SideMenu from "../components/SideMenu";
 import { gqlFetch } from "../services/graphql";
 
@@ -200,14 +200,88 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [directImageUrl, setDirectImageUrl] = useState<string | null>(null);
   const [capturing, setCapturing] = useState(false);
+  const [webcamOn, setWebcamOn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     return () => {
       if (imagePreview?.startsWith("blob:")) URL.revokeObjectURL(imagePreview);
     };
   }, [imagePreview]);
+
+  // Garante que a câmera é desligada ao desmontar o modal.
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  // Conecta o stream ao elemento <video> assim que a visão da câmera abre.
+  useEffect(() => {
+    if (webcamOn && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [webcamOn]);
+
+  function stopWebcam() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setWebcamOn(false);
+  }
+
+  async function startWebcam() {
+    setError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError("Este navegador não permite acesso à câmera (use HTTPS ou localhost)");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setWebcamOn(true);
+    } catch {
+      setError("Não foi possível acessar a câmera — verifique a permissão do navegador");
+    }
+  }
+
+  function capturePhoto() {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) {
+      setError("Câmera ainda não está pronta, tente novamente");
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      setError("Falha ao capturar a foto");
+      return;
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setError("Falha ao capturar a foto");
+          return;
+        }
+        const file = new File([blob], "webcam-capture.jpg", { type: "image/jpeg" });
+        setImageFile(file);
+        setImagePreview(URL.createObjectURL(blob));
+        setDirectImageUrl(null);
+        stopWebcam();
+      },
+      "image/jpeg",
+      0.9,
+    );
+  }
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -295,6 +369,27 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
                 Remover
               </button>
             </div>
+          ) : webcamOn ? (
+            <div className="flex flex-col gap-2">
+              <div className="relative rounded-lg overflow-hidden bg-black">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-44 object-cover"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button type="button" className="btn btn-ghost btn-sm flex-1" onClick={stopWebcam}>
+                  Cancelar
+                </button>
+                <button type="button" className="btn btn-primary btn-sm flex-1" onClick={capturePhoto}>
+                  <span className="hero-camera w-5 h-5" />
+                  Tirar foto
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col gap-2">
               <button
@@ -315,10 +410,19 @@ function NewItemModal({ categories, locations, onClose, onCreated }: NewItemModa
                   </>
                 )}
               </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm w-full"
+                onClick={startWebcam}
+              >
+                <span className="hero-video-camera w-5 h-5" />
+                Usar câmera do computador
+              </button>
+              <div className="divider my-0 text-xs text-base-content/40">ou</div>
               <label className="flex items-center gap-3 h-14 px-4 border-2 border-dashed border-base-300 rounded-lg cursor-pointer hover:border-primary transition-colors">
                 <span className="hero-photo w-6 h-6 text-base-content/30 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium">ou enviar arquivo local</p>
+                  <p className="text-sm font-medium">enviar arquivo local</p>
                   <p className="text-xs text-base-content/40">A IA descreverá automaticamente</p>
                 </div>
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleImageChange} />
